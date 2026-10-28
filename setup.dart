@@ -97,7 +97,7 @@ class Build {
     BuildItem(target: Target.android, arch: Arch.amd64, archName: 'x86_64'),
   ];
 
-  static String get appName => 'Bettbox';
+  static String get appName => 'NetBridge';
 
   static String get coreName => '${identityName}Core';
 
