@@ -1,0 +1,46 @@
+name: Sync upstream
+
+on:
+  schedule:
+    # Daily at 03:17 Beijing time (UTC+8)
+    - cron: '17 19 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Sync from upstream (rebase-on-top)
+        id: sync
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/appshubcc/Bettbox.git
+          git fetch upstream main
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "No new upstream commits."
+            exit 0
+          fi
+          if git rebase upstream/main; then
+            git push origin main
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            git rebase --abort
+            echo "::warning title=Rebase conflict::Upstream changes conflict with local customization. Resolve manually: rebase your fork main onto upstream/main, fix android/app/build.gradle.kts and lib/common/identity.dart, then run the build workflow."
+            exit 1
+          fi
+
+      - name: Trigger arm64-v8a build
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run build-android-arm64.yml --ref main

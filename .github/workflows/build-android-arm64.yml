@@ -1,0 +1,95 @@
+name: Build Android arm64-v8a
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+env:
+  GRADLE_OPTS: -Dorg.gradle.vfs.watch=false
+  SENTRY_BACKEND: none
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Setup Rust (aarch64-linux-android)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Setup Keystore (optional)
+        env:
+          KEYSTORE: ${{ secrets.KEYSTORE }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE" ] && [ -n "$KEY_ALIAS" ] && [ -n "$STORE_PASSWORD" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "$KEYSTORE" | base64 --decode > android/app/keystore.jks
+            echo "keyAlias=$KEY_ALIAS" >> android/local.properties
+            echo "storePassword=$STORE_PASSWORD" >> android/local.properties
+            echo "keyPassword=$KEY_PASSWORD" >> android/local.properties
+            echo "SIGNING_MODE=release" >> "$GITHUB_ENV"
+          else
+            echo "SIGNING_MODE=debug" >> "$GITHUB_ENV"
+          fi
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Setup Android NDK
+        shell: bash
+        run: |
+          NDK_VERSION="28.2.13676358"
+          yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --install "ndk;${NDK_VERSION}" >/dev/null 2>&1 || true
+          echo "ANDROID_NDK=${ANDROID_SDK_ROOT}/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Configure Cargo for Android
+        shell: bash
+        run: |
+          mkdir -p ~/.cargo
+          cat > ~/.cargo/config.toml <<EOF
+          [target.aarch64-linux-android]
+          linker = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang"
+          EOF
+
+      - name: Setup Golang
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.x'
+          cache-dependency-path: core/go.sum
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          flutter-version: '3.47.7'
+
+      - name: Build APK (arm64-v8a)
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
+          flutter pub get
+          dart run build_runner build
+          dart setup.dart android --arch arm64
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: NetBridge-android-arm64-v8a
+          path: ./dist/*
+          archive: false
+          if-no-files-found: error
