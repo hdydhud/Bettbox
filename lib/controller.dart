@@ -1220,7 +1220,7 @@ class AppController {
           finalSuffix = 'windows-amd64-compatible-portable.zip';
         }
         downloadUrl =
-            'https://github.com/$repository/releases/download/$tagName/Bettbox-$versionWithoutV-$finalSuffix';
+            'https://github.com/$repository/releases/download/$tagName/NetBridge-$versionWithoutV-$finalSuffix';
       }
 
       globalState.openUrl(downloadUrl);

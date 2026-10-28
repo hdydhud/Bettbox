@@ -12,7 +12,7 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -94,3 +94,20 @@ jobs:
           path: ./dist/*
           archive: false
           if-no-files-found: error
+
+      - name: Get version
+        id: ver
+        run: echo "version=$(grep '^version:' pubspec.yaml | head -1 | cut -d' ' -f2 | cut -d'+' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish Release (first build of each version)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ steps.ver.outputs.version }}"
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, skip."
+          else
+            gh release create "$TAG" ./dist/*.apk --repo "${{ github.repository }}" \
+              --title "NetBridge $TAG" \
+              --notes "自动构建：上游同步提交 ${{ github.sha }}，arm64-v8a，已用仓库密钥签名。"
+          fi
