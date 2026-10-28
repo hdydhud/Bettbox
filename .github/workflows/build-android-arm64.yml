@@ -39,7 +39,8 @@ jobs:
             echo "keyPassword=$KEY_PASSWORD" >> android/local.properties
             echo "SIGNING_MODE=release" >> "$GITHUB_ENV"
           else
-            echo "SIGNING_MODE=debug" >> "$GITHUB_ENV"
+            echo "::error title=Missing signing secrets::KEYSTORE/KEY_ALIAS/STORE_PASSWORD/KEY_PASSWORD are not configured. Refusing to build a debug-signed APK that cannot be updated in place. Configure the secrets first."
+            exit 1
           fi
 
       - name: Setup Java
